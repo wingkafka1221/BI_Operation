@@ -1,0 +1,590 @@
+/*产值*/
+
+select
+*
+from
+(
+select
+target.年,
+target.月,
+round(thisyear.审定产值,0) 审定产值,
+round(thisyear.不含税审定产值,0) 不含税审定产值,
+round(thisyear.报送产值,0) 报送产值,
+thisyear.税额,
+round(thisyear.在途未审产值,0) 在途未审产值,
+target.月度目标,
+target.累计目标,
+target.年度目标,
+
+
+round(sum(thisyear.审定产值) over(partition by thisyear.年 order by to_number(thisyear.月)),0) 累计审定产值,
+sum(thisyear.不含税审定产值) over(partition by thisyear.年 order by to_number(thisyear.月)) 累计不含税审定产值,
+sum(thisyear.报送产值) over(partition by thisyear.年 order by to_number(thisyear.月)) 累计报送产值,
+sum(thisyear.税额) over(partition by thisyear.年 order by to_number(thisyear.月)) 累计税额,
+sum(thisyear.在途未审产值) over(partition by thisyear.年 order by to_number(thisyear.月)) 累计在途未审产值,
+round(thisyear.审定产值/target.月度目标,4) 月度达成率,
+
+
+round(sum(thisyear.审定产值) over(partition by thisyear.年 order by to_number(thisyear.月))/target.累计目标,4) 累计达成率,
+
+round(sum(thisyear.审定产值) over(partition by thisyear.年 order by to_number(thisyear.月))/target.年度目标,4) 年度达成率,
+
+lastyear.去年审定产值,
+lastyear.去年累计审定产值,
+round((sum(thisyear.审定产值) over(partition by thisyear.年 order by to_number(thisyear.月)))/lastyear.去年累计审定产值-1,4) 同比
+
+
+from
+(
+select------------------------------------------------------------------------------------'1-10月报表数据'
+年,
+月,
+sum(当月实际产值) 审定产值,
+0 不含税审定产值,
+0 报送产值,
+0 税额,
+0 在途未审产值
+
+from
+"产值数据YW_月统计"
+where 年 is not null
+GROUP BY
+年,
+月
+
+union
+
+select
+年,
+月,
+审定产值,
+不含税审定产值,
+报送产值,
+税额,
+在途未审产值
+
+from
+(
+select
+年,
+月,
+审定产值,
+sum(审定产值) over(partition by 年 order by 年,to_number(月)) 累计审定产值,
+不含税审定产值,
+sum(不含税审定产值) over(partition by 年 order by 年,to_number(月)) 累计不含税审定产值,
+报送产值,
+sum(报送产值) over(partition by 年 order by 年,to_number(月)) 累计报送产值,
+税额,
+sum(税额) over(partition by 年 order by 年,to_number(月)) 累计税额,
+在途未审产值,
+sum(在途未审产值) over(partition by 年 order by 年,to_number(月)) 累计在途未审产值
+
+from
+(
+select
+
+年 年_结算批次,
+to_char(to_number(月)) 月_结算批次,
+to_char(SP.审批完成日期,'yyyy') 年,
+to_char(to_number(to_char(SP.审批完成日期,'mm'))) 月,
+round(sum(审定产值)/10000,2) 审定产值,
+round(sum(不含税审定产值)/10000,2) 不含税审定产值,
+round(sum(报送产值)/10000,2) 报送产值,
+round(sum(税额)/10000,2) 税额,
+round((sum(已完未验产值))/10000,2) 在途未审产值
+
+
+from
+
+(
+/*进度结算*/
+select -----------------------------------------------------------------------------浪潮数据
+FBHTJS_ID 主键,
+FBHTJS_FBHTID 合同登记ID,
+(
+case 
+when FBHTJS_TBDWMC like '%咨询%'  then '蓝光咨询公司'
+when FBHTJS_TBDWMC like '%煜明%'  then '煜明装饰公司'
+when FBHTJS_TBDWMC like '%园林%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%金谷%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%生态环境%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%蓝本设计%'  then '蓝本设计公司'
+else 'NaN' end 
+) 单位名称,
+/*年*/
+to_char(substr(FBHTJS_JSPC,1,4)) 年,
+/*月*/
+to_char(substr(FBHTJS_JSPC,5,6)) 月,
+sum(nvl(FBHTJS_BCJSJE,0)) 审定产值,
+sum(nvl(FBHTJS_BCJSBHSJE,0)) 不含税审定产值,
+sum(nvl(FBHTJS_BCBSCZ,0)) 报送产值,
+sum(nvl(FBHTJS_YWWY,0)) 已完未验产值,
+sum(nvl(FBHTJS_BCJSJE,0))-sum(nvl(FBHTJS_BCJSBHSJE,0)) 税额
+from
+PMCTCBHTJDJS
+where FBHTJS_SPZT=2 ----------------------------------------------审批通过
+GROUP BY
+FBHTJS_ID,
+FBHTJS_FBHTID,
+(
+case 
+when FBHTJS_TBDWMC like '%咨询%'  then '蓝光咨询公司'
+when FBHTJS_TBDWMC like '%煜明%'  then '煜明装饰公司'
+when FBHTJS_TBDWMC like '%园林%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%金谷%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%生态环境%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%蓝本设计%'  then '蓝本设计公司'
+else 'NaN' end 
+),
+to_char(substr(FBHTJS_JSPC,1,4)),
+to_char(substr(FBHTJS_JSPC,5,6))
+
+union
+
+/*竣工结算*/
+select
+FIN.主键,
+FIN.合同登记ID,
+FIN.单位名称,
+FIN.年,
+FIN.月,
+FIN.审定产值-nvl(ONGO.项目累计进度产值,0) 审定产值,
+FIN.不含税审定产值-nvl(ONGO.不含税项目累计进度产值,0) 不含税审定产值,
+FIN.报送产值,
+FIN.已完未验产值,
+(FIN.审定产值-nvl(ONGO.项目累计进度产值,0))-(FIN.不含税审定产值-nvl(ONGO.不含税项目累计进度产值,0)) 税额
+from
+(
+select-----------------------------------------------------------------------------竣工结算
+FBHTJS_ID 主键,
+FBHTJS_FBHTID 合同登记ID,
+(
+case 
+when FBHTJS_TBDWMC like '%咨询%'  then '蓝光咨询公司'
+when FBHTJS_TBDWMC like '%煜明%'  then '煜明装饰公司'
+when FBHTJS_TBDWMC like '%园林%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%金谷%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%生态环境%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%蓝本设计%'  then '蓝本设计公司'
+else 'NaN' end 
+) 单位名称,
+/*年*/
+to_char(FBHTJS_JSRQ,'yyyy')  年,
+/*月*/
+to_char(FBHTJS_JSRQ,'mm')  月,
+sum(nvl(FBHTJS_BCJSJE,0)) 审定产值,
+sum(nvl(FBHTJS_BCJSBHSJE,0)) 不含税审定产值,
+0 报送产值,
+0 已完未验产值,
+sum(nvl(FBHTJS_BCJSJE,0))-sum(nvl(FBHTJS_BCJSBHSJE,0)) 税额
+from
+PMCTCBHTJGJS
+where FBHTJS_SPZT=2
+GROUP BY
+FBHTJS_ID,
+FBHTJS_FBHTID,
+(
+case 
+when FBHTJS_TBDWMC like '%咨询%'  then '蓝光咨询公司'
+when FBHTJS_TBDWMC like '%煜明%'  then '煜明装饰公司'
+when FBHTJS_TBDWMC like '%园林%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%金谷%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%生态环境%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%蓝本设计%'  then '蓝本设计公司'
+else 'NaN' end 
+),
+to_char(FBHTJS_JSRQ,'yyyy'),
+to_char(FBHTJS_JSRQ,'mm')
+) FIN
+
+left join
+(
+select ----------------------------------------------------------------------累计进度结算
+合同登记ID,
+单位名称,
+max(项目累计进度产值) 项目累计进度产值,
+max(项目累计不含税进度产值) 不含税项目累计进度产值
+from
+(
+select
+合同登记ID,
+单位名称,
+年,
+月,
+审定产值,
+已完未验产值,
+审定产值+已完未验产值 合计,
+sum(审定产值) over(partition by 合同登记ID order by 年,月)+已完未验产值 项目累计进度产值,
+round((审定产值+已完未验产值)/(1+税率),2) 不含税审定产值,
+round(sum((审定产值+已完未验产值)/(1+税率)) over(partition by 合同登记ID order by 年,月),2) 项目累计不含税进度产值
+from
+(
+select
+FBHTJS_FBHTID 合同登记ID,
+(
+case 
+when FBHTJS_TBDWMC like '%咨询%'  then '蓝光咨询公司'
+when FBHTJS_TBDWMC like '%煜明%'  then '煜明装饰公司'
+when FBHTJS_TBDWMC like '%园林%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%金谷%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%生态环境%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%蓝本设计%'  then '蓝本设计公司'
+else 'NaN' end 
+) 单位名称,
+/*年*/
+to_char(substr(FBHTJS_JSPC,1,4)) 年,
+/*月*/
+to_char(substr(FBHTJS_JSPC,5,6)) 月,
+sum(nvl(FBHTJS_BCJSJE,0)) 审定产值,
+sum(nvl(FBHTJS_BCJSBHSJE,0)) 不含税审定产值,
+sum(nvl(FBHTJS_BCBSCZ,0)) 报送产值,
+sum(nvl(FBHTJS_YWWY,0)) 已完未验产值,
+sum(nvl(FBHTJS_SL,0)) 税率
+from
+PMCTCBHTJDJS
+GROUP BY
+FBHTJS_FBHTID,
+(
+case 
+when FBHTJS_TBDWMC like '%咨询%'  then '蓝光咨询公司'
+when FBHTJS_TBDWMC like '%煜明%'  then '煜明装饰公司'
+when FBHTJS_TBDWMC like '%园林%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%金谷%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%生态环境%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%蓝本设计%'  then '蓝本设计公司'
+else 'NaN' end 
+),
+to_char(substr(FBHTJS_JSPC,1,4)),
+to_char(substr(FBHTJS_JSPC,5,6))
+)
+order by
+合同登记ID,
+单位名称,
+年,
+月
+)
+GROUP BY
+合同登记ID,
+单位名称
+) ONGO
+on ONGO.合同登记ID = FIN.合同登记ID
+) JJ
+
+left join ----------------------------------------------------------匹配审批完成时间
+(
+select
+REFBIZID,
+(
+case
+when to_number(to_char(审批完成日期,'dd'))<=3 then 审批完成日期-3
+when to_number(to_char(审批完成日期,'dd'))>3 then 审批完成日期
+else null end
+) 审批完成日期
+from
+(
+SELECT
+REFBIZID,
+max(COMPLETEDDATE) 审批完成日期
+FROM qry_workitem_all
+where WORKITEMNAME not like '%知会%' and WORKITEMNAME not like '%抄送%'
+GROUP BY
+REFBIZID
+)
+) SP
+on SP.REFBIZID = JJ.主键
+GROUP BY
+年,
+to_char(to_number(月)),
+to_char(SP.审批完成日期,'yyyy'),
+to_char(SP.审批完成日期,'mm')
+))
+where 年>=2019 and 月>=12
+
+
+union
+
+(
+select -----------------------------------------------------------十一月临时产值
+
+年,
+to_char(to_number(月)) 月,
+round(sum(审定产值)/10000,2) 审定产值,
+round(sum(不含税审定产值)/10000,2) 不含税审定产值,
+round(sum(报送产值)/10000,2) 报送产值,
+round(sum(税额)/10000,2) 税额,
+round((sum(已完未验产值))/10000,2) 在途未审产值
+
+
+from
+(
+select -----------------------------------------------------------------------------浪潮数据
+FBHTJS_ID 主键,
+FBHTJS_FBHTID 合同登记ID,
+(
+case 
+when FBHTJS_TBDWMC like '%咨询%'  then '蓝光咨询公司'
+when FBHTJS_TBDWMC like '%煜明%'  then '煜明装饰公司'
+when FBHTJS_TBDWMC like '%园林%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%金谷%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%生态环境%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%蓝本设计%'  then '蓝本设计公司'
+else 'NaN' end 
+) 单位名称,
+/*年*/
+to_char(substr(FBHTJS_JSPC,1,4)) 年,
+/*月*/
+to_char(substr(FBHTJS_JSPC,5,6)) 月,
+sum(nvl(FBHTJS_BCJSJE,0)) 审定产值,
+sum(nvl(FBHTJS_BCJSBHSJE,0)) 不含税审定产值,
+sum(nvl(FBHTJS_BCBSCZ,0)) 报送产值,
+sum(nvl(FBHTJS_YWWY,0)) 已完未验产值,
+sum(nvl(FBHTJS_BCJSJE,0))-sum(nvl(FBHTJS_BCJSBHSJE,0)) 税额
+from
+PMCTCBHTJDJS
+GROUP BY
+FBHTJS_ID,
+FBHTJS_FBHTID,
+(
+case 
+when FBHTJS_TBDWMC like '%咨询%'  then '蓝光咨询公司'
+when FBHTJS_TBDWMC like '%煜明%'  then '煜明装饰公司'
+when FBHTJS_TBDWMC like '%园林%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%金谷%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%生态环境%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%蓝本设计%'  then '蓝本设计公司'
+else 'NaN' end 
+),
+to_char(substr(FBHTJS_JSPC,1,4)),
+to_char(substr(FBHTJS_JSPC,5,6))
+
+union
+
+/*竣工结算*/
+select
+FIN.主键,
+FIN.合同登记ID,
+FIN.单位名称,
+FIN.年,
+FIN.月,
+FIN.审定产值-nvl(ONGO.项目累计进度产值,0) 审定产值,
+FIN.不含税审定产值-nvl(ONGO.不含税项目累计进度产值,0) 不含税审定产值,
+FIN.报送产值,
+FIN.已完未验产值,
+(FIN.审定产值-nvl(ONGO.项目累计进度产值,0))-(FIN.不含税审定产值-nvl(ONGO.不含税项目累计进度产值,0)) 税额
+from
+(
+select-----------------------------------------------------------------------------竣工结算
+FBHTJS_ID 主键,
+FBHTJS_FBHTID 合同登记ID,
+(
+case 
+when FBHTJS_TBDWMC like '%咨询%'  then '蓝光咨询公司'
+when FBHTJS_TBDWMC like '%煜明%'  then '煜明装饰公司'
+when FBHTJS_TBDWMC like '%园林%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%金谷%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%生态环境%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%蓝本设计%'  then '蓝本设计公司'
+else 'NaN' end 
+) 单位名称,
+/*年*/
+to_char(FBHTJS_JSRQ,'yyyy')  年,
+/*月*/
+to_char(FBHTJS_JSRQ,'mm')  月,
+sum(nvl(FBHTJS_BCJSJE,0)) 审定产值,
+sum(nvl(FBHTJS_BCJSBHSJE,0)) 不含税审定产值,
+0 报送产值,
+0 已完未验产值,
+sum(nvl(FBHTJS_BCJSJE,0))-sum(nvl(FBHTJS_BCJSBHSJE,0)) 税额
+from
+PMCTCBHTJGJS
+where FBHTJS_SPZT=2
+GROUP BY
+FBHTJS_ID,
+FBHTJS_FBHTID,
+(
+case 
+when FBHTJS_TBDWMC like '%咨询%'  then '蓝光咨询公司'
+when FBHTJS_TBDWMC like '%煜明%'  then '煜明装饰公司'
+when FBHTJS_TBDWMC like '%园林%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%金谷%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%生态环境%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%蓝本设计%'  then '蓝本设计公司'
+else 'NaN' end 
+),
+to_char(FBHTJS_JSRQ,'yyyy'),
+to_char(FBHTJS_JSRQ,'mm')
+) FIN
+
+left join
+(
+select ----------------------------------------------------------------------累计进度结算
+合同登记ID,
+单位名称,
+max(项目累计进度产值) 项目累计进度产值,
+max(项目累计不含税进度产值) 不含税项目累计进度产值
+from
+(
+select
+合同登记ID,
+单位名称,
+年,
+月,
+审定产值,
+已完未验产值,
+审定产值+已完未验产值 合计,
+sum(审定产值) over(partition by 合同登记ID order by 年,月)+已完未验产值 项目累计进度产值,
+round((审定产值+已完未验产值)/(1+税率),2) 不含税审定产值,
+round(sum((审定产值+已完未验产值)/(1+税率)) over(partition by 合同登记ID order by 年,月),2) 项目累计不含税进度产值
+from
+(
+select
+FBHTJS_FBHTID 合同登记ID,
+(
+case 
+when FBHTJS_TBDWMC like '%咨询%'  then '蓝光咨询公司'
+when FBHTJS_TBDWMC like '%煜明%'  then '煜明装饰公司'
+when FBHTJS_TBDWMC like '%园林%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%金谷%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%生态环境%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%蓝本设计%'  then '蓝本设计公司'
+else 'NaN' end 
+) 单位名称,
+/*年*/
+to_char(substr(FBHTJS_JSPC,1,4)) 年,
+/*月*/
+to_char(substr(FBHTJS_JSPC,5,6)) 月,
+sum(nvl(FBHTJS_BCJSJE,0)) 审定产值,
+sum(nvl(FBHTJS_BCJSBHSJE,0)) 不含税审定产值,
+sum(nvl(FBHTJS_BCBSCZ,0)) 报送产值,
+sum(nvl(FBHTJS_YWWY,0)) 已完未验产值,
+sum(nvl(FBHTJS_SL,0)) 税率
+from
+PMCTCBHTJDJS
+GROUP BY
+FBHTJS_FBHTID,
+(
+case 
+when FBHTJS_TBDWMC like '%咨询%'  then '蓝光咨询公司'
+when FBHTJS_TBDWMC like '%煜明%'  then '煜明装饰公司'
+when FBHTJS_TBDWMC like '%园林%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%金谷%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%生态环境%'  then '金谷景观公司'
+when FBHTJS_TBDWMC like '%蓝本设计%'  then '蓝本设计公司'
+else 'NaN' end 
+),
+to_char(substr(FBHTJS_JSPC,1,4)),
+to_char(substr(FBHTJS_JSPC,5,6))
+)
+order by
+合同登记ID,
+单位名称,
+年,
+月
+)
+GROUP BY
+合同登记ID,
+单位名称
+) ONGO
+on ONGO.合同登记ID = FIN.合同登记ID
+)
+
+where 年=2019 and 月=11
+
+GROUP BY
+年,
+to_char(to_number(月))
+)
+
+
+
+
+union
+
+SELECT -----------------------------------------------------------------------------------业务填报数据
+BI_CZTB_YEAR 年,
+BI_CZTB_MONTH 月,
+sum(nvl(BI_CZTB_ID_SRSDJE,0)) 审定产值,
+sum(nvl(BI_CZTB_BHZZSJE,0)) 不含税审定产值,
+sum(nvl(BI_CZTB_ID_SRHJ,0)) 报送产值,
+sum(nvl(BI_CZTB_XXSE,0)) 税额,
+sum(nvl(BI_CZTB_ID_SRYWWY,0)) 在途未审产值
+FROM "BI_CZTB"
+GROUP BY
+BI_CZTB_YEAR,
+BI_CZTB_MONTH
+
+union
+
+select
+年,
+月,
+sum(审定产值) 审定产值,
+sum(不含税审定产值) 不含税审定产值,
+sum(报送产值) 报送产值,
+sum(税额) 税额,
+sum(在途未审产值) 在途未审产值
+from
+(
+select
+to_char(to_date(a."Jlsj",'yyyy-mm-dd'),'yyyy') 年,
+to_char(to_number(to_char(to_date(a."Jlsj",'yyyy-mm-dd'),'mm'))) 月,
+a."Sdcz" 审定产值, 
+a."Sdcz"/(1+b."Sl") 不含税审定产值,
+a."Bscz" 报送产值,
+a."Sdcz"/(1+b."Sl")*b."Sl" 税额,
+a."Bscz"-a."Sdcz" 在途未审产值
+FROM
+LC00019999."Gckz_Jdcz_Syczbs" a
+LEFT JOIN
+LC00019999."Htxx_Syht" b   
+on  
+a."Xmid" = b."Id"
+)
+where 年>=2019 and 月>=11
+
+GROUP BY
+年,
+月
+) thisyear
+
+
+right join
+(
+select -----------------------------------------------------------------------------------------目标数据
+年,
+月,
+sum(MONTHLY_TARGET) 月度目标,
+sum(CUMULATIVE_TARGET) 累计目标,
+sum(ANNUAL_TARGET) 年度目标
+from
+"产值数据YW_目标统计"
+GROUP BY
+年,
+月
+) target
+on thisyear.年 = target.年 and thisyear.月 = target.月
+
+
+left join
+(
+select ---------------------------------------------------------------------------------去年数据
+年,
+月,
+sum(当月实际产值) 去年审定产值,
+sum(累计实际产值) 去年累计审定产值
+
+from
+"2018产值数据YW_月统计"
+GROUP BY
+年,
+月
+)
+lastyear
+
+on thisyear.月 = lastyear.月
+
+
+ORDER BY
+target.年,
+to_number(target.月)
+)
