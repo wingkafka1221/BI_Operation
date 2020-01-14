@@ -298,7 +298,7 @@ to_char(to_number(月)),
 to_char(SP.审批完成日期,'yyyy'),
 to_char(SP.审批完成日期,'mm')
 ))
-where 年>=2019 and 月>=12
+where (年=2019 and 月=12) or 年>2019
 
 
 union
